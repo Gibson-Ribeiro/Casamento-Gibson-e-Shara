@@ -1,14 +1,37 @@
 # Convite de casamento online | Gibson & Shara
 
-Sistema de convite online responsivo para GitHub Pages, com links individuais por QR Code e banco de dados no Supabase.
+Sistema de convite online responsivo para GitHub Pages, com links individuais por QR Code, confirmação de presença, escolha segura de presentes e painel administrativo pelo Supabase Auth.
 
-Cada convidado recebe um link neste formato:
+URL base prevista:
+
+```text
+https://gibsonribeiro.github.io/convite-casamento/
+```
+
+Link individual de convite:
 
 ```text
 https://gibsonribeiro.github.io/convite-casamento/?convite=FAB-BRU-8K29XZ
 ```
 
-O parâmetro `convite` funciona como a chave de acesso. Use códigos longos e difíceis de adivinhar.
+Quando a pessoa abre a URL sem `?convite=...`, o site mostra a tela inicial com:
+
+- login dos noivos;
+- campo para inserir manualmente o código do QR Code;
+- redirecionamento para o convite quando o código é válido.
+
+Se o QR Code ou link estiver inválido, o site volta para essa tela inicial com aviso e permite digitar o código manualmente.
+
+## Supabase usado no front-end
+
+O arquivo `supabaseClient.js` já está configurado com:
+
+```text
+SUPABASE_URL=https://bebneplfctyapydfkvcd.supabase.co
+SUPABASE_PUBLIC_KEY=sb_publishable_b6MMdn3Zmi7E5fLv1BMtOA_qOD45DLc
+```
+
+Essa é uma chave pública. Nunca coloque a `service_role key` no front-end.
 
 ## Estrutura
 
@@ -31,74 +54,74 @@ scripts/
   importar-convidados.mjs
 ```
 
-## 1. Criar o projeto no Supabase
+## 1. Rodar o SQL no Supabase
 
-1. Acesse o Supabase e crie um novo projeto.
-2. Abra `SQL Editor`.
-3. Copie todo o conteúdo de `supabase-schema.sql`.
-4. Execute o SQL.
-5. Em `Project Settings > API`, copie:
-   - Project URL
-   - anon public key
-   - service_role key
+1. Abra o projeto no Supabase.
+2. Vá em `SQL Editor`.
+3. Cole todo o conteúdo de `supabase-schema.sql`.
+4. Execute.
 
-Nunca coloque a `service_role key` no front-end. Ela só deve ficar no `.env` local.
+O SQL cria:
 
-## 2. Configurar o front-end
+- `convidados`;
+- `presentes`;
+- `logs_respostas`;
+- `admin_usuarios`;
+- funções RPC públicas do convite;
+- RPC administrativa protegida por Supabase Auth;
+- RPC para cadastrar convidados pelo admin usando apenas nome e quantidade;
+- RPC para cadastrar presentes pelo admin com link opcional do item;
+- RLS bloqueando acesso direto às tabelas por `anon` e `authenticated`;
+- allowlist dos admins:
+  - `slade.gibson@gmail.com`;
+  - `sharalutke@gmail.com`.
 
-Abra `supabaseClient.js` e substitua:
+Se você já tinha rodado a versão antiga do SQL, pode rodar este arquivo novamente. Ele remove a função admin antiga com chave simples e cria a nova função com autenticação.
 
-```js
-const SUPABASE_URL = "COLE_AQUI_A_URL";
-const SUPABASE_ANON_KEY = "COLE_AQUI_A_ANON_KEY";
-```
+## 2. Criar os usuários admins
 
-Use apenas a `anon public key`.
+No Supabase:
 
-## 3. Configurar variáveis locais
+1. Vá em `Authentication > Users`.
+2. Crie o usuário `slade.gibson@gmail.com`.
+3. Crie o usuário `sharalutke@gmail.com`.
+4. Defina uma senha para cada um.
+5. Confirme o e-mail no painel, se o Supabase pedir confirmação.
 
-Crie um arquivo `.env` a partir de `.env.example`:
+Esses e-mails já estão autorizados na tabela `admin_usuarios`. Qualquer outro e-mail que tente entrar no painel será bloqueado pela RPC `admin_obter_dashboard`.
+
+## 3. Cadastrar convidados e presentes no admin
+
+Depois de criar os usuários admins, abra:
 
 ```text
-SUPABASE_URL=https://seu-projeto.supabase.co
-SUPABASE_ANON_KEY=sua_anon_key
-SUPABASE_SERVICE_ROLE_KEY=sua_service_role_key
-BASE_URL=https://gibsonribeiro.github.io/convite-casamento/
+https://gibsonribeiro.github.io/convite-casamento/
 ```
 
-O `.env` já está no `.gitignore`.
+Faça login com Gibson ou Shara. No painel:
 
-## 4. Configurar chave do admin
+- em `Novo convidado`, informe somente o nome que aparecerá no convite e a quantidade de pessoas;
+- o código do convite é gerado automaticamente;
+- a tabela mostra o código e o link do convite;
+- em `Novo presente`, informe nome, descrição, valor opcional, link do item opcional, imagem opcional e ordem.
 
-O painel `admin.html` usa uma RPC com chave administrativa digitada no navegador. Não é um sistema completo de autenticação, mas evita exposição direta dos dados e serve para acompanhamento inicial.
+O campo `Link do item` aceita URLs começando com `http://` ou `https://`.
 
-No SQL Editor do Supabase, rode:
+## 4. Cadastrar presentes manualmente no SQL
 
-```sql
-alter database postgres set "app.admin_key" = 'COLOQUE_UMA_CHAVE_LONGA_E_ALEATORIA_AQUI';
-```
-
-Depois, feche e abra novamente o painel admin. Se a configuração não refletir imediatamente, aguarde alguns minutos ou reinicie a conexão no painel do Supabase.
-
-Para segurança real em produção, acompanhe os dados pelo painel do Supabase ou evolua o admin para usar Supabase Auth.
-
-## 5. Cadastrar presentes
-
-No Supabase, insira presentes na tabela `presentes`.
-
-Exemplo:
+Se preferir cadastrar presentes direto pelo SQL Editor:
 
 ```sql
-insert into public.presentes (nome, descricao, valor_referencia, imagem_url, ordem)
+insert into public.presentes (nome, descricao, valor_referencia, imagem_url, link_url, ordem)
 values
-  ('Jogo de jantar', 'Uma sugestão para a nova casa.', 280, null, 10),
-  ('Conjunto de taças', 'Para brindar novos começos.', 180, null, 20),
-  ('Cota lua de mel', 'Uma contribuição para a viagem dos noivos.', 250, null, 30);
+  ('Jogo de jantar', 'Uma sugestão para a nova casa.', 280, null, 'https://loja.com/jogo-de-jantar', 10),
+  ('Conjunto de taças', 'Para brindar novos começos.', 180, null, 'https://loja.com/tacas', 20),
+  ('Cota lua de mel', 'Uma contribuição para a viagem dos noivos.', 250, null, null, 30);
 ```
 
-Quando um convidado escolhe um presente, a função `escolher_presente` atualiza o registro apenas se ele ainda estiver `disponivel`. Se duas pessoas tentarem escolher ao mesmo tempo, só a primeira grava.
+A escolha de presente é segura no banco. A função `escolher_presente` só atualiza um presente quando ele ainda está `disponivel`; se duas pessoas clicarem ao mesmo tempo, apenas a primeira consegue.
 
-## 6. Gerar QR Codes
+## 5. Gerar QR Codes
 
 Instale as dependências:
 
@@ -106,28 +129,13 @@ Instale as dependências:
 npm install
 ```
 
-Você pode usar o exemplo:
+Use o CSV de exemplo:
 
 ```bash
 npm run gerar:qrcodes
 ```
 
-Por padrão, o script lê:
-
-```text
-scripts/convidados-exemplo.csv
-```
-
-E gera:
-
-```text
-convidados-com-links.csv
-qrcodes/CODIGO.png
-```
-
-Para usar um CSV próprio:
-
-PowerShell:
+Para usar seu próprio CSV no PowerShell:
 
 ```powershell
 $env:INPUT_CSV="convidados.csv"
@@ -135,86 +143,69 @@ $env:OUTPUT_CSV="convidados-com-links.csv"
 npm run gerar:qrcodes
 ```
 
-macOS/Linux:
-
-```bash
-INPUT_CSV=convidados.csv OUTPUT_CSV=convidados-com-links.csv npm run gerar:qrcodes
-```
-
-Formato do CSV:
+Formato:
 
 ```csv
-nome_exibicao,tipo_convite,limite_pessoas
-Fabiana e Bruno,casal,2
-Paloma e Leandro,casal,2
-Magda e Gian,casal,2
-Djuly e Matheus,casal,2
-Família Ribeiro,familia,4
+nome_exibicao,limite_pessoas
+Fabiana e Bruno,2
+Paloma e Leandro,2
+Familia Ribeiro,4
 ```
 
-O script gera códigos como:
+Saída:
 
 ```text
-FAB-BRU-8K29XZ
+convidados-com-links.csv
+qrcodes/CODIGO.png
 ```
 
-## 7. Importar convidados no Supabase
+## 6. Importar convidados
 
-Depois de gerar `convidados-com-links.csv`, rode:
+Crie um `.env` a partir de `.env.example` e preencha somente a `SUPABASE_SERVICE_ROLE_KEY` localmente.
+
+Depois rode:
 
 ```bash
 npm run importar:convidados
 ```
 
-Para importar outro arquivo:
+O script insere convidados novos e atualiza apenas dados cadastrais. Ele não sobrescreve:
 
-```powershell
-$env:CSV_FINAL="convidados-com-links.csv"
-npm run importar:convidados
-```
+- `status_resposta`;
+- `quantidade_confirmada`;
+- `mensagem`;
+- `presente_escolhido_id`.
 
-O script usa `SUPABASE_SERVICE_ROLE_KEY` do `.env`, insere convidados novos e atualiza apenas dados cadastrais de convidados existentes. Ele não altera:
+## 7. Subir no GitHub Pages
 
-- `status_resposta`
-- `quantidade_confirmada`
-- `mensagem`
-- `presente_escolhido_id`
+1. Crie o repositório `convite-casamento`.
+2. Envie todos os arquivos.
+3. Vá em `Settings > Pages`.
+4. Selecione `Deploy from a branch`.
+5. Selecione branch `main` e pasta `/root`.
 
-Assim, respostas já existentes não são sobrescritas.
-
-## 8. Subir no GitHub Pages
-
-1. Crie um repositório chamado `convite-casamento`.
-2. Envie os arquivos para o GitHub.
-3. No repositório, acesse `Settings > Pages`.
-4. Em `Build and deployment`, selecione:
-   - Source: `Deploy from a branch`
-   - Branch: `main`
-   - Folder: `/root`
-5. Aguarde o GitHub publicar.
-
-URL esperada:
+Depois acesse:
 
 ```text
 https://gibsonribeiro.github.io/convite-casamento/
 ```
 
-## 9. Testar o fluxo
+## 8. Testar
 
-1. Cadastre pelo menos um presente.
-2. Gere os QR Codes.
-3. Importe os convidados.
-4. Abra um link do CSV final.
-5. Confirme presença.
-6. Escolha um presente.
-7. Abra outro convite e confirme que o presente escolhido não aparece mais.
-8. Acesse `admin.html` e confira os totais.
+1. Rode o SQL.
+2. Crie os dois usuários admins no Supabase Auth.
+3. Abra o link inicial sem código e faça login como admin.
+4. Cadastre convidados com nome e quantidade.
+5. Cadastre presentes com link do item, se houver.
+6. Abra um link com `?convite=CODIGO`.
+7. Confirme presença e escolha um presente.
+8. Abra outro convite e confira que o presente escolhido não aparece mais.
 
-## 10. Personalizar textos, data, local e cores
+## Personalização
 
-Textos e dados do evento ficam em `app.js`, no objeto `EVENTO` e nas funções de renderização.
+Textos e dados do evento ficam em `app.js`, no objeto `EVENTO`.
 
-Cores, espaçamentos e estilo visual ficam em `styles.css`, nos tokens do `:root`.
+Cores e layout ficam em `styles.css`, no bloco `:root`.
 
 A imagem de fundo fica em:
 
@@ -224,10 +215,10 @@ assets/fine-art-bg.png
 
 ## Segurança
 
-- Não use códigos simples.
-- Não exponha `SUPABASE_SERVICE_ROLE_KEY` no navegador.
-- O front-end usa somente a anon key.
-- As tabelas têm RLS ativado e não permitem acesso direto por `anon`.
-- As ações públicas passam por RPCs com validação pelo código do convite.
-- A escolha de presente é protegida no banco pela função `escolher_presente`.
-- O painel admin é um acompanhamento inicial. Para um admin realmente seguro, use Supabase Auth.
+- O link do convite funciona como chave de acesso.
+- Use códigos longos e difíceis de adivinhar.
+- A `service_role key` deve ficar apenas no `.env` local.
+- O front-end usa somente a public key.
+- As tabelas têm RLS ativado.
+- O painel admin exige login no Supabase Auth e e-mail cadastrado em `admin_usuarios`.
+- A escolha de presente é protegida no Postgres, não só no front-end.

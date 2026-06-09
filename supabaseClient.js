@@ -1,5 +1,5 @@
-const SUPABASE_URL = "COLE_AQUI_A_URL";
-const SUPABASE_ANON_KEY = "COLE_AQUI_A_ANON_KEY";
+const SUPABASE_URL = "https://bebneplfctyapydfkvcd.supabase.co";
+const SUPABASE_ANON_KEY = "sb_publishable_b6MMdn3Zmi7E5fLv1BMtOA_qOD45DLc";
 
 // Nunca coloque a service_role key no front-end.
 // Use a service_role key somente em scripts locais, via .env, fora do Git.

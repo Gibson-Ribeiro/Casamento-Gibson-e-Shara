@@ -1,8 +1,6 @@
 import { getSupabaseClient, isSupabaseConfigured } from "./supabaseClient.js";
 
 const app = document.querySelector("#app");
-const params = new URLSearchParams(window.location.search);
-const codigoConvite = (params.get("convite") || "").trim().toUpperCase();
 
 const EVENTO = {
   casal: "Gibson & Shara",
@@ -12,9 +10,19 @@ const EVENTO = {
   endereco: "Rua Ipê, 125, bairro Padre Martinho Stein, Timbó",
 };
 
+let codigoConvite = lerCodigoDaUrl();
 let conviteAtual = null;
 let acaoEmAndamento = false;
 let supabase = null;
+
+function lerCodigoDaUrl() {
+  const params = new URLSearchParams(window.location.search);
+  return normalizarCodigo(params.get("convite") || "");
+}
+
+function normalizarCodigo(codigo = "") {
+  return String(codigo).trim().replace(/\s+/g, "").toUpperCase();
+}
 
 function escapeHtml(value = "") {
   return String(value)
@@ -38,6 +46,13 @@ function definirTela(html) {
   window.scrollTo({ top: 0, behavior: "smooth" });
 }
 
+function limparUrlInicial() {
+  if (window.location.search) {
+    window.history.replaceState({}, "", window.location.pathname);
+  }
+  codigoConvite = "";
+}
+
 function mostrarCarregando(texto = "Preparando seu convite...") {
   definirTela(`
     <div class="loading-card">
@@ -55,6 +70,81 @@ function mostrarMensagem({ titulo, texto, detalhe = "", acao = "" }) {
       <p class="lead">${escapeHtml(texto)}</p>
       ${detalhe ? `<p class="muted">${escapeHtml(detalhe)}</p>` : ""}
       ${acao}
+    </article>
+  `);
+}
+
+function renderizarInicio({ aviso = "", detalhe = "" } = {}) {
+  limparUrlInicial();
+
+  definirTela(`
+    <article class="paper-card home-card fade-in">
+      <p class="eyebrow">Gibson & Shara</p>
+      <h1>Entrada do casamento</h1>
+      <p class="lead">
+        Acesse o painel dos noivos ou informe o código impresso no QR Code do convite.
+      </p>
+
+      ${
+        aviso
+          ? `<div class="notice notice--warn">
+              <strong>${escapeHtml(aviso)}</strong>
+              ${detalhe ? `<span>${escapeHtml(detalhe)}</span>` : ""}
+            </div>`
+          : ""
+      }
+
+      <div class="home-grid">
+        <form class="soft-form home-section" data-form="codigo-convite">
+          <h2>Acessar convite</h2>
+          <p>
+            Digite o código do QR Code para abrir o convite personalizado.
+          </p>
+          <label>
+            <span>Código do QR Code</span>
+            <input
+              name="codigo"
+              type="text"
+              autocomplete="one-time-code"
+              placeholder="FAB-BRU-8K29XZ"
+              required
+            />
+          </label>
+          <button class="button button--secondary" type="submit">
+            Abrir convite
+          </button>
+        </form>
+
+        <form class="soft-form home-section" data-form="login-admin">
+          <h2>Área dos noivos</h2>
+          <p>
+            Acesso restrito para Gibson e Shara acompanharem as respostas.
+          </p>
+          <label>
+            <span>E-mail</span>
+            <input
+              name="email"
+              type="email"
+              autocomplete="email"
+              placeholder="seu@email.com"
+              required
+            />
+          </label>
+          <label>
+            <span>Senha</span>
+            <input
+              name="password"
+              type="password"
+              autocomplete="current-password"
+              placeholder="Senha do Supabase"
+              required
+            />
+          </label>
+          <button class="button button--primary" type="submit">
+            Entrar no painel
+          </button>
+        </form>
+      </div>
     </article>
   `);
 }
@@ -90,7 +180,7 @@ function renderizarConvite() {
           <dd>${EVENTO.data}</dd>
         </div>
         <div>
-          <dt>Horario</dt>
+          <dt>Horário</dt>
           <dd>${EVENTO.horario}</dd>
         </div>
         <div>
@@ -202,11 +292,9 @@ async function renderizarPresentes(mensagem = "") {
   });
 
   if (error) {
-    mostrarMensagem({
-      titulo: "Não foi possível carregar os presentes.",
-      texto: "Tente novamente em alguns instantes.",
+    renderizarInicio({
+      aviso: "Não foi possível carregar os presentes.",
       detalhe: error.message,
-      acao: `<button class="button button--primary" type="button" data-action="recarregar-presentes">Tentar novamente</button>`,
     });
     return;
   }
@@ -215,6 +303,9 @@ async function renderizarPresentes(mensagem = "") {
   const cards = presentes
     .map((presente) => {
       const valor = formatarMoeda(presente.valor_referencia);
+      const linkItem = presente.link_url
+        ? `<a class="gift-link" href="${escapeHtml(presente.link_url)}" target="_blank" rel="noopener noreferrer">Ver item</a>`
+        : "";
       return `
         <article class="gift-card">
           ${
@@ -226,6 +317,7 @@ async function renderizarPresentes(mensagem = "") {
             <h2>${escapeHtml(presente.nome)}</h2>
             ${presente.descricao ? `<p>${escapeHtml(presente.descricao)}</p>` : ""}
             ${valor ? `<span>${valor}</span>` : ""}
+            ${linkItem}
           </div>
           <button
             class="button button--primary button--small"
@@ -266,7 +358,7 @@ async function renderizarPresentes(mensagem = "") {
 function renderizarFinal(presenteNome = "") {
   const detalhe = presenteNome
     ? `Presente escolhido: ${presenteNome}.`
-    : "Sua resposta ja foi registrada.";
+    : "Sua resposta já foi registrada.";
 
   mostrarMensagem({
     titulo: "Presença confirmada com carinho.",
@@ -283,53 +375,53 @@ function renderizarRecusaFinal() {
   });
 }
 
-async function buscarConvite() {
+async function prepararSupabase() {
   if (!isSupabaseConfigured()) {
-    mostrarMensagem({
-      titulo: "Configuração pendente.",
-      texto: "Cole a URL e a anon key do Supabase no arquivo supabaseClient.js antes de publicar.",
+    renderizarInicio({
+      aviso: "Configuração pendente.",
+      detalhe: "Cole a URL e a public key do Supabase no arquivo supabaseClient.js.",
     });
-    return;
+    return null;
   }
 
-  if (!codigoConvite) {
-    mostrarMensagem({
-      titulo: "Convite não encontrado.",
-      texto: "Verifique se o QR Code foi lido corretamente.",
+  try {
+    supabase = supabase || (await getSupabaseClient());
+    return supabase;
+  } catch (error) {
+    renderizarInicio({
+      aviso: "Não foi possível carregar a conexão.",
+      detalhe: "Verifique sua internet e as chaves do Supabase.",
     });
+    return null;
+  }
+}
+
+async function buscarConvite() {
+  if (!codigoConvite) {
+    renderizarInicio();
     return;
   }
 
   mostrarCarregando();
+  const client = await prepararSupabase();
+  if (!client) return;
 
-  try {
-    supabase = await getSupabaseClient();
-  } catch (error) {
-    mostrarMensagem({
-      titulo: "Não foi possível carregar a conexão.",
-      texto: "Verifique sua internet e as chaves do Supabase.",
-      detalhe: error.message,
-    });
-    return;
-  }
-
-  const { data, error } = await supabase.rpc("buscar_convite_por_codigo", {
+  const { data, error } = await client.rpc("buscar_convite_por_codigo", {
     p_codigo: codigoConvite,
   });
 
   if (error) {
-    mostrarMensagem({
-      titulo: "Não foi possível abrir o convite.",
-      texto: "Tente novamente em alguns instantes.",
+    renderizarInicio({
+      aviso: "Não foi possível abrir o convite.",
       detalhe: error.message,
     });
     return;
   }
 
   if (!data) {
-    mostrarMensagem({
-      titulo: "Convite não encontrado.",
-      texto: "Verifique se o QR Code foi lido corretamente.",
+    renderizarInicio({
+      aviso: "Convite não encontrado.",
+      detalhe: "Verifique o QR Code ou digite o código manualmente.",
     });
     return;
   }
@@ -372,6 +464,50 @@ async function executarComBloqueio(botao, tarefa) {
       botao.textContent = textoOriginal;
     }
   }
+}
+
+function abrirConvitePorCodigo(form) {
+  const formData = new FormData(form);
+  const codigo = normalizarCodigo(formData.get("codigo"));
+
+  if (!codigo) {
+    renderizarInicio({
+      aviso: "Informe o código do convite.",
+      detalhe: "Ele aparece no QR Code ou no link recebido.",
+    });
+    return;
+  }
+
+  const destino = new URL(window.location.href);
+  destino.search = "";
+  destino.searchParams.set("convite", codigo);
+  window.location.href = destino.toString();
+}
+
+async function entrarAdmin(form, botao) {
+  const formData = new FormData(form);
+  const email = String(formData.get("email") || "").trim().toLowerCase();
+  const password = String(formData.get("password") || "");
+
+  await executarComBloqueio(botao, async () => {
+    const client = await prepararSupabase();
+    if (!client) return;
+
+    const { error } = await client.auth.signInWithPassword({
+      email,
+      password,
+    });
+
+    if (error) {
+      renderizarInicio({
+        aviso: "Não foi possível entrar no painel.",
+        detalhe: error.message,
+      });
+      return;
+    }
+
+    window.location.href = "./admin.html";
+  });
 }
 
 async function enviarConfirmacao(form, botao) {
@@ -478,6 +614,8 @@ app.addEventListener("submit", (event) => {
   const form = event.target;
   const botao = form.querySelector('button[type="submit"]');
 
+  if (form.dataset.form === "codigo-convite") abrirConvitePorCodigo(form);
+  if (form.dataset.form === "login-admin") entrarAdmin(form, botao);
   if (form.dataset.form === "confirmacao") enviarConfirmacao(form, botao);
   if (form.dataset.form === "recusa") enviarRecusa(form, botao);
 });

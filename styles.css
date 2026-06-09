@@ -95,6 +95,7 @@ button:disabled {
 
 .invite-card,
 .form-card,
+.home-card,
 .paper-card--center {
   padding: 58px 22px 28px;
   text-align: center;
@@ -152,6 +153,37 @@ h1 {
   margin: 0 auto 24px;
   color: var(--muted);
   font-size: 0.94rem;
+}
+
+.home-card {
+  width: min(100%, 860px);
+}
+
+.home-grid {
+  display: grid;
+  gap: 26px;
+  width: 100%;
+  margin-top: 28px;
+}
+
+.home-section {
+  align-content: start;
+  padding-top: 22px;
+  border-top: 1px solid var(--line);
+}
+
+.home-section h2 {
+  margin: 0 0 8px;
+  font-family: "Cormorant Garamond", Georgia, serif;
+  font-size: 2rem;
+  line-height: 1.05;
+}
+
+.home-section p {
+  margin: 0 0 12px;
+  color: var(--muted);
+  font-size: 0.92rem;
+  line-height: 1.45;
 }
 
 .guest-panel {
@@ -271,6 +303,19 @@ dd {
   min-height: 46px;
   padding: 10px 12px;
   font-size: 0.88rem;
+}
+
+.text-link {
+  display: inline-flex;
+  justify-content: center;
+  color: var(--green-deep);
+  font-size: 0.9rem;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.text-link:hover {
+  text-decoration: underline;
 }
 
 .soft-form {
@@ -400,6 +445,25 @@ dd {
   font-weight: 700;
 }
 
+.gift-link,
+.table-link {
+  display: inline-flex;
+  align-items: center;
+  color: var(--green-deep);
+  font-size: 0.86rem;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.gift-link {
+  margin-bottom: 10px;
+}
+
+.gift-link:hover,
+.table-link:hover {
+  text-decoration: underline;
+}
+
 .gift-card .button {
   grid-column: 1 / -1;
 }
@@ -417,6 +481,17 @@ dd {
   border: 1px solid rgba(184, 149, 85, 0.28);
   background: rgba(255, 253, 248, 0.9);
   color: var(--green-deep);
+}
+
+.notice strong,
+.notice span {
+  display: block;
+}
+
+.notice span {
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 0.9rem;
 }
 
 .empty-state {
@@ -475,9 +550,47 @@ dd {
   font-size: 3rem;
 }
 
+.admin-user {
+  margin: 8px 0 0;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
 .admin-actions {
   display: grid;
   gap: 10px;
+}
+
+.admin-feedback[hidden] {
+  display: none;
+}
+
+.admin-forms-grid {
+  display: grid;
+  gap: 14px;
+  margin: 22px 0;
+}
+
+.admin-create-form {
+  padding: 18px;
+  border: 1px solid rgba(184, 149, 85, 0.22);
+  border-radius: 8px;
+  background: rgba(255, 253, 248, 0.9);
+  box-shadow: 0 12px 34px rgba(66, 54, 42, 0.1);
+}
+
+.admin-create-form h2 {
+  margin: 0 0 8px;
+  font-family: "Cormorant Garamond", Georgia, serif;
+  font-size: 2rem;
+  line-height: 1.08;
+}
+
+.admin-create-form p {
+  margin: 0 0 4px;
+  color: var(--muted);
+  font-size: 0.9rem;
+  line-height: 1.45;
 }
 
 .metrics-grid {
@@ -609,6 +722,7 @@ td {
 
   .invite-card,
   .form-card,
+  .home-card,
   .paper-card--center {
     padding: 76px 64px 52px;
   }
@@ -636,11 +750,16 @@ td {
   }
 
   .admin-actions {
-    grid-template-columns: auto auto;
+    grid-template-columns: auto auto auto;
   }
 
   .metrics-grid {
     grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .admin-forms-grid {
+    grid-template-columns: minmax(260px, 0.8fr) minmax(320px, 1.2fr);
+    align-items: start;
   }
 
   .form-card .actions,
@@ -650,6 +769,22 @@ td {
 
   .gift-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .home-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 34px;
+    text-align: left;
+  }
+
+  .home-section {
+    padding-top: 0;
+    border-top: 0;
+  }
+
+  .home-section + .home-section {
+    padding-left: 34px;
+    border-left: 1px solid var(--line);
   }
 }
 
@@ -672,6 +807,7 @@ td {
 @media (max-width: 360px) {
   .invite-card,
   .form-card,
+  .home-card,
   .paper-card--center {
     padding-inline: 16px;
   }

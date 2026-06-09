@@ -124,7 +124,6 @@ async function main() {
 
     linhas.push({
       nome_exibicao: nome,
-      tipo_convite: registro.tipo_convite || "",
       limite_pessoas: registro.limite_pessoas || "1",
       codigo_convite: codigo,
       link_convite: linkConvite,
@@ -136,7 +135,6 @@ async function main() {
     header: true,
     columns: [
       "nome_exibicao",
-      "tipo_convite",
       "limite_pessoas",
       "codigo_convite",
       "link_convite",
