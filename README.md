@@ -62,6 +62,8 @@ O importante: não deixe nenhuma URL local como `Site URL` principal quando for 
 
 O `index.html` já trata links de criação/recuperação de senha do Supabase. Quando o e-mail abrir o site com token ou `?code=...`, aparece a tela `Criar senha`.
 
+Redirect correto não remove limite de e-mail. Se o Supabase retornar `email rate limit exceeded`, use o script `npm run criar:admins`, aguarde o limite liberar ou configure SMTP próprio.
+
 ## Estrutura
 
 ```text
@@ -109,14 +111,41 @@ Se você já tinha rodado a versão antiga do SQL, pode rodar este arquivo novam
 
 ## 2. Criar os usuários admins
 
-No Supabase:
+### Caminho recomendado sem e-mail
 
-1. Vá em `Authentication > Users`.
-2. Crie o usuário `slade.gibson@gmail.com`.
-3. Crie o usuário `sharalutke@gmail.com`.
-4. Se criar por convite/e-mail, o link deve voltar para o GitHub Pages conforme a configuração de redirects acima.
-5. Se preferir, crie o usuário pelo painel e depois use `Receber link para criar ou redefinir senha` na tela inicial do site.
-6. Confirme o e-mail no painel, se o Supabase pedir confirmação.
+O Supabase limita fortemente os e-mails do Auth quando você usa o SMTP padrão. Se aparecer `email rate limit exceeded`, não é erro do site: o próprio Supabase bloqueou novos envios temporariamente.
+
+Para não depender de e-mail, crie os admins localmente usando a `service_role key`.
+
+No arquivo `.env`, preencha:
+
+```text
+SUPABASE_URL=https://bebneplfctyapydfkvcd.supabase.co
+SUPABASE_SERVICE_ROLE_KEY=sua_service_role_key
+ADMIN_GIBSON_PASSWORD=uma_senha_segura
+ADMIN_SHARA_PASSWORD=uma_senha_segura
+```
+
+Depois rode:
+
+```bash
+npm run criar:admins
+```
+
+Esse comando cria ou atualiza:
+
+- `slade.gibson@gmail.com`;
+- `sharalutke@gmail.com`.
+
+Ele já marca os e-mails como confirmados e define as senhas, sem disparar e-mail.
+
+### Caminho por e-mail
+
+Se quiser usar convite ou recuperação por e-mail pelo Supabase:
+
+1. Confira os redirects em `Authentication > URL Configuration`.
+2. Aguarde o limite de e-mail liberar ou configure SMTP próprio.
+3. Depois use o convite pelo painel do Supabase ou o botão `Receber link para criar ou redefinir senha` no site.
 
 Esses e-mails já estão autorizados na tabela `admin_usuarios`. Qualquer outro e-mail que tente entrar no painel será bloqueado pela RPC `admin_obter_dashboard`.
 

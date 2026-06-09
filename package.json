@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "gerar:qrcodes": "node scripts/gerar-qrcodes.mjs",
-    "importar:convidados": "node scripts/importar-convidados.mjs"
+    "importar:convidados": "node scripts/importar-convidados.mjs",
+    "criar:admins": "node scripts/criar-admins.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.4",

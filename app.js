@@ -210,6 +210,16 @@ function renderizarCriarSenha(email = "", erro = "") {
   `);
 }
 
+function mensagemAuth(error) {
+  const texto = error?.message || String(error || "");
+
+  if (texto.toLowerCase().includes("email rate limit")) {
+    return "O limite de e-mails do Supabase foi atingido. Aguarde o limite liberar ou crie os admins localmente com npm run criar:admins usando a service_role no .env.";
+  }
+
+  return texto;
+}
+
 function botaoVoltarConvite() {
   return `
     <button class="button button--ghost" type="button" data-action="voltar-convite">
@@ -608,7 +618,7 @@ async function entrarAdmin(form, botao) {
     if (error) {
       renderizarInicio({
         aviso: "Não foi possível entrar no painel.",
-        detalhe: error.message,
+        detalhe: mensagemAuth(error),
       });
       return;
     }
@@ -640,7 +650,7 @@ async function enviarLinkSenha(botao) {
     if (error) {
       renderizarInicio({
         aviso: "Não foi possível enviar o link.",
-        detalhe: error.message,
+        detalhe: mensagemAuth(error),
       });
       return;
     }
@@ -674,7 +684,7 @@ async function salvarNovaSenha(form, botao) {
     const { error } = await client.auth.updateUser({ password });
 
     if (error) {
-      renderizarCriarSenha("", error.message);
+      renderizarCriarSenha("", mensagemAuth(error));
       return;
     }
 
