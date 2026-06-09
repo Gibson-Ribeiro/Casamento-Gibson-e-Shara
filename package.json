@@ -1,0 +1,17 @@
+{
+  "name": "convite-casamento-gibson-shara",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "gerar:qrcodes": "node scripts/gerar-qrcodes.mjs",
+    "importar:convidados": "node scripts/importar-convidados.mjs"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.45.4",
+    "csv-parse": "^5.5.6",
+    "csv-stringify": "^6.5.1",
+    "dotenv": "^16.4.5",
+    "qrcode": "^1.5.4"
+  }
+}
