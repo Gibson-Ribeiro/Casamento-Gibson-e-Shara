@@ -12,7 +12,7 @@ const __dirname = path.dirname(__filename);
 const rootDir = path.resolve(__dirname, "..");
 
 const baseUrl =
-  process.env.BASE_URL || "https://gibsonribeiro.github.io/convite-casamento/";
+  process.env.BASE_URL || "https://gibson-ribeiro.github.io/Casamento-Gibson-e-Shara/";
 const inputCsv = path.resolve(rootDir, process.env.INPUT_CSV || "scripts/convidados-exemplo.csv");
 const outputCsv = path.resolve(rootDir, process.env.OUTPUT_CSV || "convidados-com-links.csv");
 const qrDir = path.resolve(rootDir, process.env.QR_OUTPUT_DIR || "qrcodes");

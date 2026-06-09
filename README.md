@@ -5,13 +5,13 @@ Sistema de convite online responsivo para GitHub Pages, com links individuais po
 URL base prevista:
 
 ```text
-https://gibsonribeiro.github.io/convite-casamento/
+https://gibson-ribeiro.github.io/Casamento-Gibson-e-Shara/
 ```
 
 Link individual de convite:
 
 ```text
-https://gibsonribeiro.github.io/convite-casamento/?convite=FAB-BRU-8K29XZ
+https://gibson-ribeiro.github.io/Casamento-Gibson-e-Shara/?convite=FAB-BRU-8K29XZ
 ```
 
 Quando a pessoa abre a URL sem `?convite=...`, o site mostra a tela inicial com:
@@ -32,6 +32,35 @@ SUPABASE_PUBLIC_KEY=sb_publishable_b6MMdn3Zmi7E5fLv1BMtOA_qOD45DLc
 ```
 
 Essa é uma chave pública. Nunca coloque a `service_role key` no front-end.
+
+## Configurar redirects do Supabase Auth
+
+No Supabase, vá em `Authentication > URL Configuration`.
+
+Para produção no GitHub Pages, configure:
+
+```text
+Site URL:
+https://gibson-ribeiro.github.io/Casamento-Gibson-e-Shara/
+```
+
+Em `Redirect URLs`, adicione:
+
+```text
+https://gibson-ribeiro.github.io/Casamento-Gibson-e-Shara/
+https://gibson-ribeiro.github.io/Casamento-Gibson-e-Shara/index.html
+https://gibson-ribeiro.github.io/Casamento-Gibson-e-Shara/admin.html
+```
+
+Para teste local, você pode manter também a URL que estiver usando no momento:
+
+```text
+http://127.0.0.1:8920/index.html
+```
+
+O importante: não deixe nenhuma URL local como `Site URL` principal quando for usar o GitHub Pages, senão os e-mails de convite/criação de senha voltam para o lugar errado.
+
+O `index.html` já trata links de criação/recuperação de senha do Supabase. Quando o e-mail abrir o site com token ou `?code=...`, aparece a tela `Criar senha`.
 
 ## Estrutura
 
@@ -85,8 +114,9 @@ No Supabase:
 1. Vá em `Authentication > Users`.
 2. Crie o usuário `slade.gibson@gmail.com`.
 3. Crie o usuário `sharalutke@gmail.com`.
-4. Defina uma senha para cada um.
-5. Confirme o e-mail no painel, se o Supabase pedir confirmação.
+4. Se criar por convite/e-mail, o link deve voltar para o GitHub Pages conforme a configuração de redirects acima.
+5. Se preferir, crie o usuário pelo painel e depois use `Receber link para criar ou redefinir senha` na tela inicial do site.
+6. Confirme o e-mail no painel, se o Supabase pedir confirmação.
 
 Esses e-mails já estão autorizados na tabela `admin_usuarios`. Qualquer outro e-mail que tente entrar no painel será bloqueado pela RPC `admin_obter_dashboard`.
 
@@ -95,7 +125,7 @@ Esses e-mails já estão autorizados na tabela `admin_usuarios`. Qualquer outro 
 Depois de criar os usuários admins, abra:
 
 ```text
-https://gibsonribeiro.github.io/convite-casamento/
+https://gibson-ribeiro.github.io/Casamento-Gibson-e-Shara/
 ```
 
 Faça login com Gibson ou Shara. No painel:
@@ -178,7 +208,7 @@ O script insere convidados novos e atualiza apenas dados cadastrais. Ele não so
 
 ## 7. Subir no GitHub Pages
 
-1. Crie o repositório `convite-casamento`.
+1. Use o repositório `Casamento-Gibson-e-Shara`.
 2. Envie todos os arquivos.
 3. Vá em `Settings > Pages`.
 4. Selecione `Deploy from a branch`.
@@ -187,7 +217,7 @@ O script insere convidados novos e atualiza apenas dados cadastrais. Ele não so
 Depois acesse:
 
 ```text
-https://gibsonribeiro.github.io/convite-casamento/
+https://gibson-ribeiro.github.io/Casamento-Gibson-e-Shara/
 ```
 
 ## 8. Testar

@@ -47,10 +47,27 @@ function definirTela(html) {
 }
 
 function limparUrlInicial() {
-  if (window.location.search) {
+  if (window.location.search || window.location.hash) {
     window.history.replaceState({}, "", window.location.pathname);
   }
   codigoConvite = "";
+}
+
+function montarUrlAuth() {
+  return new URL("index.html", window.location.href).toString().split("#")[0];
+}
+
+function temRetornoAuthSupabase() {
+  const searchParams = new URLSearchParams(window.location.search);
+  const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ""));
+
+  return (
+    searchParams.has("code") ||
+    searchParams.has("error") ||
+    hashParams.has("access_token") ||
+    hashParams.has("error") ||
+    ["invite", "recovery", "signup", "magiclink"].includes(hashParams.get("type"))
+  );
 }
 
 function mostrarCarregando(texto = "Preparando seu convite...") {
@@ -143,8 +160,52 @@ function renderizarInicio({ aviso = "", detalhe = "" } = {}) {
           <button class="button button--primary" type="submit">
             Entrar no painel
           </button>
+          <button class="button button--ghost" type="button" data-action="enviar-link-senha">
+            Receber link para criar ou redefinir senha
+          </button>
         </form>
       </div>
+    </article>
+  `);
+}
+
+function renderizarCriarSenha(email = "", erro = "") {
+  definirTela(`
+    <article class="paper-card form-card fade-in">
+      <p class="eyebrow">Área dos noivos</p>
+      <h1>Criar senha</h1>
+      <p class="lead">
+        Defina uma senha para acessar o painel administrativo do casamento.
+      </p>
+      ${email ? `<p class="muted">${escapeHtml(email)}</p>` : ""}
+      ${erro ? `<div class="notice notice--warn">${escapeHtml(erro)}</div>` : ""}
+      <form class="soft-form" data-form="criar-senha">
+        <label>
+          <span>Nova senha</span>
+          <input
+            name="password"
+            type="password"
+            autocomplete="new-password"
+            minlength="6"
+            placeholder="Digite uma senha"
+            required
+          />
+        </label>
+        <label>
+          <span>Confirmar senha</span>
+          <input
+            name="password_confirm"
+            type="password"
+            autocomplete="new-password"
+            minlength="6"
+            placeholder="Repita a senha"
+            required
+          />
+        </label>
+        <button class="button button--primary" type="submit">
+          Salvar senha e entrar
+        </button>
+      </form>
     </article>
   `);
 }
@@ -397,6 +458,11 @@ async function prepararSupabase() {
 }
 
 async function buscarConvite() {
+  if (temRetornoAuthSupabase()) {
+    await processarRetornoAuth();
+    return;
+  }
+
   if (!codigoConvite) {
     renderizarInicio();
     return;
@@ -444,6 +510,47 @@ async function buscarConvite() {
   }
 
   renderizarConvite();
+}
+
+async function processarRetornoAuth() {
+  const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ""));
+  const searchParams = new URLSearchParams(window.location.search);
+  const erro =
+    hashParams.get("error_description") ||
+    searchParams.get("error_description") ||
+    hashParams.get("error") ||
+    searchParams.get("error");
+
+  if (erro) {
+    renderizarInicio({
+      aviso: "Link de senha inválido.",
+      detalhe: erro,
+    });
+    return;
+  }
+
+  mostrarCarregando("Validando link de acesso...");
+  const client = await prepararSupabase();
+  if (!client) return;
+
+  let { data, error } = await client.auth.getSession();
+
+  if (!data.session && searchParams.get("code")) {
+    const resultado = await client.auth.exchangeCodeForSession(searchParams.get("code"));
+    data = resultado.data;
+    error = resultado.error;
+  }
+
+  if (error || !data.session) {
+    renderizarInicio({
+      aviso: "Não foi possível validar o link de senha.",
+      detalhe: "O link pode ter expirado. Solicite um novo link na área dos noivos.",
+    });
+    return;
+  }
+
+  window.history.replaceState({}, "", window.location.pathname);
+  renderizarCriarSenha(data.session.user?.email || "");
 }
 
 async function executarComBloqueio(botao, tarefa) {
@@ -503,6 +610,71 @@ async function entrarAdmin(form, botao) {
         aviso: "Não foi possível entrar no painel.",
         detalhe: error.message,
       });
+      return;
+    }
+
+    window.location.href = "./admin.html";
+  });
+}
+
+async function enviarLinkSenha(botao) {
+  const form = botao.closest("form");
+  const email = String(new FormData(form).get("email") || "").trim().toLowerCase();
+
+  if (!email) {
+    renderizarInicio({
+      aviso: "Informe o e-mail.",
+      detalhe: "Digite o e-mail de Gibson ou Shara para receber o link de senha.",
+    });
+    return;
+  }
+
+  await executarComBloqueio(botao, async () => {
+    const client = await prepararSupabase();
+    if (!client) return;
+
+    const { error } = await client.auth.resetPasswordForEmail(email, {
+      redirectTo: montarUrlAuth(),
+    });
+
+    if (error) {
+      renderizarInicio({
+        aviso: "Não foi possível enviar o link.",
+        detalhe: error.message,
+      });
+      return;
+    }
+
+    renderizarInicio({
+      aviso: "Link enviado.",
+      detalhe: "Abra o e-mail recebido neste dispositivo e defina sua senha.",
+    });
+  });
+}
+
+async function salvarNovaSenha(form, botao) {
+  const formData = new FormData(form);
+  const password = String(formData.get("password") || "");
+  const confirmacao = String(formData.get("password_confirm") || "");
+
+  if (password.length < 6) {
+    renderizarCriarSenha("", "A senha precisa ter pelo menos 6 caracteres.");
+    return;
+  }
+
+  if (password !== confirmacao) {
+    renderizarCriarSenha("", "As senhas digitadas não conferem.");
+    return;
+  }
+
+  await executarComBloqueio(botao, async () => {
+    const client = await prepararSupabase();
+    if (!client) return;
+
+    const { error } = await client.auth.updateUser({ password });
+
+    if (error) {
+      renderizarCriarSenha("", error.message);
       return;
     }
 
@@ -604,6 +776,7 @@ app.addEventListener("click", (event) => {
   if (action === "abrir-recusa") renderizarFormularioRecusa();
   if (action === "voltar-convite") renderizarConvite();
   if (action === "recarregar-presentes") renderizarPresentes();
+  if (action === "enviar-link-senha") enviarLinkSenha(botao);
   if (action === "escolher-presente") {
     escolherPresente(botao.dataset.presenteId, botao);
   }
@@ -616,6 +789,7 @@ app.addEventListener("submit", (event) => {
 
   if (form.dataset.form === "codigo-convite") abrirConvitePorCodigo(form);
   if (form.dataset.form === "login-admin") entrarAdmin(form, botao);
+  if (form.dataset.form === "criar-senha") salvarNovaSenha(form, botao);
   if (form.dataset.form === "confirmacao") enviarConfirmacao(form, botao);
   if (form.dataset.form === "recusa") enviarRecusa(form, botao);
 });
