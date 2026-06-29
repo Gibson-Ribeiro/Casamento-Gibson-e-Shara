@@ -51,6 +51,28 @@ button:disabled {
   opacity: 0.72;
 }
 
+.music-control {
+  position: fixed;
+  right: 14px;
+  bottom: 14px;
+  z-index: 20;
+  min-height: 42px;
+  max-width: calc(100vw - 28px);
+  border: 1px solid rgba(184, 149, 85, 0.34);
+  border-radius: 8px;
+  padding: 9px 12px;
+  background: rgba(255, 253, 248, 0.94);
+  box-shadow: 0 12px 34px rgba(66, 54, 42, 0.16);
+  color: var(--green-deep);
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.music-control:hover {
+  border-color: rgba(69, 81, 61, 0.42);
+  background: rgba(247, 239, 229, 0.98);
+}
+
 .site-shell {
   display: grid;
   min-height: 100svh;
