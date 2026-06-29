@@ -41,6 +41,58 @@ function formatarMoeda(valor) {
   });
 }
 
+function ehPix(presente) {
+  return presente?.tipo_presente === "pix";
+}
+
+function renderizarChavePix(chave = "") {
+  if (!chave) return "";
+
+  return `
+    <div class="pix-box">
+      <span>Chave PIX</span>
+      <code>${escapeHtml(chave)}</code>
+      <button
+        class="button button--ghost button--small"
+        type="button"
+        data-action="copiar-pix"
+        data-pix-key="${escapeHtml(chave)}"
+      >
+        Copiar chave PIX
+      </button>
+    </div>
+  `;
+}
+
+function copiarTextoFallback(texto) {
+  const campo = document.createElement("textarea");
+  campo.value = texto;
+  campo.setAttribute("readonly", "");
+  campo.style.position = "fixed";
+  campo.style.opacity = "0";
+  document.body.appendChild(campo);
+  campo.select();
+  document.execCommand("copy");
+  campo.remove();
+}
+
+async function copiarPix(botao) {
+  const chave = botao.dataset.pixKey || "";
+  if (!chave) return;
+
+  if (navigator.clipboard && window.isSecureContext) {
+    await navigator.clipboard.writeText(chave);
+  } else {
+    copiarTextoFallback(chave);
+  }
+
+  const textoOriginal = botao.textContent;
+  botao.textContent = "Chave copiada";
+  window.setTimeout(() => {
+    if (document.body.contains(botao)) botao.textContent = textoOriginal;
+  }, 1800);
+}
+
 function definirTela(html) {
   app.innerHTML = html;
   window.scrollTo({ top: 0, behavior: "smooth" });
@@ -210,6 +262,23 @@ function renderizarCriarSenha(email = "", erro = "") {
   `);
 }
 
+function mensagemErroSupabase(error) {
+  const texto = error?.message || String(error || "");
+  const normalizado = texto.toLowerCase();
+
+  if (
+    normalizado.includes("failed to fetch") ||
+    normalizado.includes("fetch failed") ||
+    normalizado.includes("networkerror") ||
+    normalizado.includes("network request failed") ||
+    normalizado.includes("load failed")
+  ) {
+    return "Nao foi possivel conectar ao Supabase. Verifique se o projeto esta ativo no painel do Supabase, se a URL e a chave publica continuam corretas, e tente novamente.";
+  }
+
+  return texto;
+}
+
 function mensagemAuth(error) {
   const texto = error?.message || String(error || "");
 
@@ -217,7 +286,7 @@ function mensagemAuth(error) {
     return "O limite de e-mails do Supabase foi atingido. Aguarde o limite liberar ou crie os admins localmente com npm run criar:admins usando a service_role no .env.";
   }
 
-  return texto;
+  return mensagemErroSupabase(error);
 }
 
 function botaoVoltarConvite() {
@@ -365,7 +434,7 @@ async function renderizarPresentes(mensagem = "") {
   if (error) {
     renderizarInicio({
       aviso: "Não foi possível carregar os presentes.",
-      detalhe: error.message,
+      detalhe: mensagemErroSupabase(error),
     });
     return;
   }
@@ -374,21 +443,24 @@ async function renderizarPresentes(mensagem = "") {
   const cards = presentes
     .map((presente) => {
       const valor = formatarMoeda(presente.valor_referencia);
-      const linkItem = presente.link_url
+      const pix = ehPix(presente);
+      const linkItem = !pix && presente.link_url
         ? `<a class="gift-link" href="${escapeHtml(presente.link_url)}" target="_blank" rel="noopener noreferrer">Ver item</a>`
         : "";
+      const chavePix = pix ? renderizarChavePix(presente.chave_pix) : "";
       return `
-        <article class="gift-card">
+        <article class="gift-card ${pix ? "gift-card--pix" : ""}">
           ${
             presente.imagem_url
               ? `<img src="${escapeHtml(presente.imagem_url)}" alt="" loading="lazy" />`
-              : `<div class="gift-card__placeholder" aria-hidden="true">G&S</div>`
+              : `<div class="gift-card__placeholder" aria-hidden="true">${pix ? "PIX" : "G&S"}</div>`
           }
           <div>
             <h2>${escapeHtml(presente.nome)}</h2>
             ${presente.descricao ? `<p>${escapeHtml(presente.descricao)}</p>` : ""}
             ${valor ? `<span>${valor}</span>` : ""}
             ${linkItem}
+            ${chavePix}
           </div>
           <button
             class="button button--primary button--small"
@@ -396,7 +468,7 @@ async function renderizarPresentes(mensagem = "") {
             data-action="escolher-presente"
             data-presente-id="${escapeHtml(presente.id)}"
           >
-            Escolher este presente
+            ${pix ? "Escolher PIX" : "Escolher este presente"}
           </button>
         </article>
       `;
@@ -426,15 +498,23 @@ async function renderizarPresentes(mensagem = "") {
   `);
 }
 
-function renderizarFinal(presenteNome = "") {
-  const detalhe = presenteNome
-    ? `Presente escolhido: ${presenteNome}.`
-    : "Sua resposta já foi registrada.";
+function renderizarFinal(presente = "") {
+  const presenteInfo = typeof presente === "object" && presente !== null ? presente : null;
+  const presenteNome = presenteInfo?.nome || presente || "";
+  const detalhe = presenteInfo && ehPix(presenteInfo)
+    ? `Opcao escolhida: ${presenteNome}.`
+    : presenteNome
+      ? `Presente escolhido: ${presenteNome}.`
+      : "Sua resposta já foi registrada.";
+  const acao = presenteInfo && ehPix(presenteInfo)
+    ? renderizarChavePix(presenteInfo.chave_pix)
+    : "";
 
   mostrarMensagem({
     titulo: "Presença confirmada com carinho.",
     texto: "Obrigado por fazer parte da nossa história.",
     detalhe,
+    acao,
   });
 }
 
@@ -489,7 +569,7 @@ async function buscarConvite() {
   if (error) {
     renderizarInicio({
       aviso: "Não foi possível abrir o convite.",
-      detalhe: error.message,
+      detalhe: mensagemErroSupabase(error),
     });
     return;
   }
@@ -511,7 +591,7 @@ async function buscarConvite() {
 
   if (conviteAtual.status_resposta === "confirmado") {
     if (conviteAtual.presente_escolhido?.nome) {
-      renderizarFinal(conviteAtual.presente_escolhido.nome);
+      renderizarFinal(conviteAtual.presente_escolhido);
       return;
     }
 
@@ -708,7 +788,7 @@ async function enviarConfirmacao(form, botao) {
       mostrarMensagem({
         titulo: "Não foi possível confirmar.",
         texto: data?.message || "Revise os dados e tente novamente.",
-        detalhe: error?.message || "",
+        detalhe: error ? mensagemErroSupabase(error) : "",
         acao: botaoVoltarConvite(),
       });
       return;
@@ -738,7 +818,7 @@ async function enviarRecusa(form, botao) {
       mostrarMensagem({
         titulo: "Não foi possível registrar sua resposta.",
         texto: data?.message || "Tente novamente em alguns instantes.",
-        detalhe: error?.message || "",
+        detalhe: error ? mensagemErroSupabase(error) : "",
         acao: botaoVoltarConvite(),
       });
       return;
@@ -759,7 +839,7 @@ async function escolherPresente(presenteId, botao) {
       mostrarMensagem({
         titulo: "Não foi possível escolher o presente.",
         texto: "Tente novamente em alguns instantes.",
-        detalhe: error.message,
+        detalhe: mensagemErroSupabase(error),
         acao: `<button class="button button--primary" type="button" data-action="recarregar-presentes">Voltar aos presentes</button>`,
       });
       return;
@@ -773,7 +853,7 @@ async function escolherPresente(presenteId, botao) {
       return;
     }
 
-    renderizarFinal(data.presente?.nome || "");
+    renderizarFinal(data.presente || "");
   });
 }
 
@@ -787,6 +867,7 @@ app.addEventListener("click", (event) => {
   if (action === "voltar-convite") renderizarConvite();
   if (action === "recarregar-presentes") renderizarPresentes();
   if (action === "enviar-link-senha") enviarLinkSenha(botao);
+  if (action === "copiar-pix") copiarPix(botao);
   if (action === "escolher-presente") {
     escolherPresente(botao.dataset.presenteId, botao);
   }

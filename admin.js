@@ -5,6 +5,7 @@ let dashboardAtual = null;
 let supabase = null;
 let usuarioAtual = null;
 let acaoEmAndamento = false;
+let edicaoAtual = null;
 
 function escapeHtml(value = "") {
   return String(value)
@@ -17,6 +18,23 @@ function escapeHtml(value = "") {
 
 function setAdmin(html) {
   adminApp.innerHTML = html;
+}
+
+function mensagemErroSupabase(error) {
+  const texto = error?.message || String(error || "");
+  const normalizado = texto.toLowerCase();
+
+  if (
+    normalizado.includes("failed to fetch") ||
+    normalizado.includes("fetch failed") ||
+    normalizado.includes("networkerror") ||
+    normalizado.includes("network request failed") ||
+    normalizado.includes("load failed")
+  ) {
+    return "Nao foi possivel conectar ao Supabase. Verifique se o projeto esta ativo no painel do Supabase, se a URL e a chave publica continuam corretas, e tente novamente.";
+  }
+
+  return texto;
 }
 
 function labelStatus(status) {
@@ -36,6 +54,52 @@ function formatarMoeda(valor) {
     style: "currency",
     currency: "BRL",
   });
+}
+
+function valorCampo(value = "") {
+  return escapeHtml(value ?? "");
+}
+
+function tipoPresenteLabel(tipo = "item") {
+  return tipo === "pix" ? "PIX" : "Item";
+}
+
+function renderTipoPresenteCampos(presente = {}) {
+  const tipo = presente.tipo_presente === "pix" ? "pix" : "item";
+  return `
+    <fieldset class="segmented-field" data-gift-type-control>
+      <legend>Tipo</legend>
+      <label>
+        <input type="radio" name="tipo_presente" value="item" ${tipo === "item" ? "checked" : ""} />
+        <span>Item</span>
+      </label>
+      <label>
+        <input type="radio" name="tipo_presente" value="pix" ${tipo === "pix" ? "checked" : ""} />
+        <span>PIX</span>
+      </label>
+    </fieldset>
+    <label data-gift-field="link">
+      <span>Link do item</span>
+      <input name="link_url" type="url" placeholder="https://loja.com/produto" value="${valorCampo(presente.link_url)}" />
+    </label>
+    <label data-gift-field="pix">
+      <span>Chave PIX aleatoria</span>
+      <input name="chave_pix" type="text" placeholder="Cole a chave PIX aqui" value="${valorCampo(presente.chave_pix)}" />
+    </label>
+  `;
+}
+
+function atualizarCamposTipoPresente(form) {
+  const tipo = new FormData(form).get("tipo_presente") || "item";
+  const campoLink = form.querySelector('[data-gift-field="link"]');
+  const campoPix = form.querySelector('[data-gift-field="pix"]');
+  const inputPix = form.querySelector('[name="chave_pix"]');
+  const inputLink = form.querySelector('[name="link_url"]');
+
+  if (campoLink) campoLink.hidden = tipo === "pix";
+  if (campoPix) campoPix.hidden = tipo !== "pix";
+  if (inputPix) inputPix.required = tipo === "pix";
+  if (inputLink) inputLink.required = false;
 }
 
 function montarLinkConvite(codigo) {
@@ -107,6 +171,77 @@ function renderCarregando() {
   `);
 }
 
+function renderEditor(convidados, listaPresentes) {
+  if (!edicaoAtual) return "";
+
+  if (edicaoAtual.tipo === "convidado") {
+    const convidado = convidados.find((item) => item.id === edicaoAtual.id);
+    if (!convidado) return "";
+
+    return `
+      <section class="admin-edit-panel" data-edit-panel>
+        <form class="soft-form admin-create-form" data-admin-form="editar-convidado">
+          <h2>Editar convidado</h2>
+          <input type="hidden" name="id" value="${escapeHtml(convidado.id)}" />
+          <label>
+            <span>Nome do convidado, casal ou familia</span>
+            <input name="nome_exibicao" type="text" value="${valorCampo(convidado.nome_exibicao)}" required />
+          </label>
+          <label>
+            <span>Quantidade de pessoas</span>
+            <input name="limite_pessoas" type="number" min="1" value="${valorCampo(convidado.limite_pessoas || 1)}" inputmode="numeric" required />
+          </label>
+          <div class="actions">
+            <button class="button button--primary" type="submit">Salvar convidado</button>
+            <button class="button button--ghost" type="button" data-admin-action="cancelar-edicao">Cancelar</button>
+          </div>
+        </form>
+      </section>
+    `;
+  }
+
+  if (edicaoAtual.tipo === "presente") {
+    const presente = listaPresentes.find((item) => item.id === edicaoAtual.id);
+    if (!presente) return "";
+
+    return `
+      <section class="admin-edit-panel" data-edit-panel>
+        <form class="soft-form admin-create-form" data-admin-form="editar-presente">
+          <h2>Editar presente</h2>
+          <input type="hidden" name="id" value="${escapeHtml(presente.id)}" />
+          <label>
+            <span>Nome</span>
+            <input name="nome" type="text" value="${valorCampo(presente.nome)}" required />
+          </label>
+          <label>
+            <span>Descricao curta</span>
+            <textarea name="descricao" rows="3">${escapeHtml(presente.descricao || "")}</textarea>
+          </label>
+          <label>
+            <span>Valor de referencia</span>
+            <input name="valor_referencia" type="number" min="0" step="0.01" value="${valorCampo(presente.valor_referencia ?? "")}" inputmode="decimal" />
+          </label>
+          ${renderTipoPresenteCampos(presente)}
+          <label>
+            <span>Link da imagem</span>
+            <input name="imagem_url" type="url" value="${valorCampo(presente.imagem_url)}" />
+          </label>
+          <label>
+            <span>Ordem</span>
+            <input name="ordem" type="number" value="${valorCampo(presente.ordem || 0)}" inputmode="numeric" />
+          </label>
+          <div class="actions">
+            <button class="button button--primary" type="submit">Salvar presente</button>
+            <button class="button button--ghost" type="button" data-admin-action="cancelar-edicao">Cancelar</button>
+          </div>
+        </form>
+      </section>
+    `;
+  }
+
+  return "";
+}
+
 function renderDashboard(dashboard) {
   dashboardAtual = dashboard;
   const totais = dashboard.totais || {};
@@ -122,6 +257,7 @@ function renderDashboard(dashboard) {
     ["Pessoas confirmadas", totais.quantidade_total_confirmada || 0],
     ["Presentes escolhidos", presentes.escolhidos || 0],
     ["Presentes disponíveis", presentes.disponiveis || 0],
+    ["PIX cadastrados", presentes.pix || 0],
   ]
     .map(
       ([label, value]) => `
@@ -145,6 +281,10 @@ function renderDashboard(dashboard) {
           <td><span class="status status--${escapeHtml(convidado.status_resposta)}">${labelStatus(convidado.status_resposta)}</span></td>
           <td>${escapeHtml(convidado.quantidade_confirmada ?? "")}</td>
           <td>${escapeHtml(convidado.presente_nome || "")}</td>
+          <td class="table-actions">
+            <button class="table-action" type="button" data-admin-action="editar-convidado" data-id="${escapeHtml(convidado.id)}">Editar</button>
+            <button class="table-action table-action--danger" type="button" data-admin-action="excluir-convidado" data-id="${escapeHtml(convidado.id)}">Excluir</button>
+          </td>
         </tr>
       `;
       }
@@ -156,18 +296,27 @@ function renderDashboard(dashboard) {
       (presente) => `
         <tr>
           <td>${escapeHtml(presente.nome)}</td>
+          <td>${escapeHtml(tipoPresenteLabel(presente.tipo_presente))}</td>
           <td>${escapeHtml(formatarMoeda(presente.valor_referencia))}</td>
           <td>${
-            presente.link_url
+            presente.tipo_presente === "pix"
+              ? escapeHtml(presente.chave_pix || "")
+              : presente.link_url
               ? `<a class="table-link" href="${escapeHtml(presente.link_url)}" target="_blank" rel="noopener noreferrer">Ver item</a>`
               : ""
           }</td>
           <td><span class="status status--${escapeHtml(presente.status)}">${labelStatus(presente.status)}</span></td>
-          <td>${escapeHtml(presente.escolhido_por || "")}</td>
+          <td>${escapeHtml(presente.tipo_presente === "pix" ? presente.escolhas || 0 : presente.escolhido_por || "")}</td>
+          <td class="table-actions">
+            <button class="table-action" type="button" data-admin-action="editar-presente" data-id="${escapeHtml(presente.id)}">Editar</button>
+            <button class="table-action table-action--danger" type="button" data-admin-action="excluir-presente" data-id="${escapeHtml(presente.id)}">Excluir</button>
+          </td>
         </tr>
       `
     )
     .join("");
+
+  const editor = renderEditor(convidados, listaPresentes);
 
   setAdmin(`
     <section class="admin-dashboard fade-in">
@@ -228,7 +377,7 @@ function renderDashboard(dashboard) {
           <p>O link do item é opcional, mas já fica disponível para o convidado consultar.</p>
           <label>
             <span>Nome do presente</span>
-            <input name="nome" type="text" placeholder="Jogo de jantar" required />
+            <input name="nome" type="text" placeholder="PIX dos noivos" required />
           </label>
           <label>
             <span>Descrição curta</span>
@@ -238,10 +387,7 @@ function renderDashboard(dashboard) {
             <span>Valor de referência</span>
             <input name="valor_referencia" type="number" min="0" step="0.01" placeholder="280.00" inputmode="decimal" />
           </label>
-          <label>
-            <span>Link do item</span>
-            <input name="link_url" type="url" placeholder="https://loja.com/produto" />
-          </label>
+          ${renderTipoPresenteCampos()}
           <label>
             <span>Link da imagem</span>
             <input name="imagem_url" type="url" placeholder="https://loja.com/imagem.jpg" />
@@ -256,6 +402,8 @@ function renderDashboard(dashboard) {
         </form>
       </section>
 
+      ${editor}
+
       <section class="admin-table-section">
         <h2>Convidados</h2>
         <div class="table-wrap">
@@ -268,6 +416,7 @@ function renderDashboard(dashboard) {
                 <th>Status</th>
                 <th>Qtd.</th>
                 <th>Presente</th>
+                <th>Acoes</th>
               </tr>
             </thead>
             <tbody>${linhasConvidados}</tbody>
@@ -282,10 +431,12 @@ function renderDashboard(dashboard) {
             <thead>
               <tr>
                 <th>Presente</th>
+                <th>Tipo</th>
                 <th>Valor</th>
-                <th>Link</th>
+                <th>Link / PIX</th>
                 <th>Status</th>
-                <th>Escolhido por</th>
+                <th>Escolhas</th>
+                <th>Acoes</th>
               </tr>
             </thead>
             <tbody>${linhasPresentes}</tbody>
@@ -294,6 +445,10 @@ function renderDashboard(dashboard) {
       </section>
     </section>
   `);
+
+  adminApp
+    .querySelectorAll('[data-admin-form="criar-presente"], [data-admin-form="editar-presente"]')
+    .forEach(atualizarCamposTipoPresente);
 }
 
 async function prepararSupabase() {
@@ -306,7 +461,7 @@ async function prepararSupabase() {
     supabase = supabase || (await getSupabaseClient());
     return supabase;
   } catch (error) {
-    renderLogin(`Não foi possível carregar a conexão com o Supabase: ${error.message}`);
+    renderLogin(`Não foi possível carregar a conexão com o Supabase: ${mensagemErroSupabase(error)}`);
     return null;
   }
 }
@@ -371,7 +526,7 @@ async function entrarAdmin(form, botao) {
     });
 
     if (error) {
-      renderLogin(`Não foi possível entrar: ${error.message}`);
+      renderLogin(`Não foi possível entrar: ${mensagemErroSupabase(error)}`);
       return;
     }
 
@@ -431,12 +586,15 @@ async function cadastrarPresente(form, botao) {
     const client = await prepararSupabase();
     if (!client) return;
 
-    const { data, error } = await client.rpc("admin_criar_presente", {
+    const { data, error } = await client.rpc("admin_salvar_presente", {
+      p_presente_id: null,
       p_nome: String(formData.get("nome") || "").trim(),
       p_descricao: String(formData.get("descricao") || "").trim() || null,
       p_valor_referencia: valor ? Number(valor) : null,
       p_imagem_url: String(formData.get("imagem_url") || "").trim() || null,
       p_link_url: String(formData.get("link_url") || "").trim() || null,
+      p_tipo_presente: String(formData.get("tipo_presente") || "item"),
+      p_chave_pix: String(formData.get("chave_pix") || "").trim() || null,
       p_ordem: ordem ? Number(ordem) : 0,
     });
 
@@ -449,9 +607,118 @@ async function cadastrarPresente(form, botao) {
     }
 
     form.reset();
+    atualizarCamposTipoPresente(form);
     await carregarDashboard();
     renderAvisoAdmin("Presente cadastrado.", data.presente?.nome || "Item salvo na lista.");
   });
+}
+
+async function editarConvidado(form, botao) {
+  const formData = new FormData(form);
+
+  await executarComBloqueio(botao, async () => {
+    const client = await prepararSupabase();
+    if (!client) return;
+
+    const { data, error } = await client.rpc("admin_atualizar_convidado", {
+      p_convidado_id: String(formData.get("id") || ""),
+      p_nome_exibicao: String(formData.get("nome_exibicao") || "").trim(),
+      p_limite_pessoas: Number(formData.get("limite_pessoas") || 1),
+    });
+
+    if (error || !data?.success) {
+      renderAvisoAdmin(
+        "Nao foi possivel atualizar o convidado.",
+        data?.message || error?.message || "Revise os dados e tente novamente."
+      );
+      return;
+    }
+
+    edicaoAtual = null;
+    await carregarDashboard();
+    renderAvisoAdmin("Convidado atualizado.", data.convidado?.nome_exibicao || "Alteracao salva.");
+  });
+}
+
+async function editarPresente(form, botao) {
+  const formData = new FormData(form);
+  const valor = String(formData.get("valor_referencia") || "").trim();
+  const ordem = String(formData.get("ordem") || "").trim();
+
+  await executarComBloqueio(botao, async () => {
+    const client = await prepararSupabase();
+    if (!client) return;
+
+    const { data, error } = await client.rpc("admin_salvar_presente", {
+      p_presente_id: String(formData.get("id") || ""),
+      p_nome: String(formData.get("nome") || "").trim(),
+      p_descricao: String(formData.get("descricao") || "").trim() || null,
+      p_valor_referencia: valor ? Number(valor) : null,
+      p_imagem_url: String(formData.get("imagem_url") || "").trim() || null,
+      p_link_url: String(formData.get("link_url") || "").trim() || null,
+      p_tipo_presente: String(formData.get("tipo_presente") || "item"),
+      p_chave_pix: String(formData.get("chave_pix") || "").trim() || null,
+      p_ordem: ordem ? Number(ordem) : 0,
+    });
+
+    if (error || !data?.success) {
+      renderAvisoAdmin(
+        "Nao foi possivel atualizar o presente.",
+        data?.message || error?.message || "Revise os dados e tente novamente."
+      );
+      return;
+    }
+
+    edicaoAtual = null;
+    await carregarDashboard();
+    renderAvisoAdmin("Presente atualizado.", data.presente?.nome || "Alteracao salva.");
+  });
+}
+
+async function excluirConvidado(id) {
+  if (!window.confirm("Excluir este convidado? Esta acao nao pode ser desfeita.")) return;
+
+  const client = await prepararSupabase();
+  if (!client) return;
+
+  const { data, error } = await client.rpc("admin_excluir_convidado", {
+    p_convidado_id: id,
+  });
+
+  if (error || !data?.success) {
+    renderAvisoAdmin(
+      "Nao foi possivel excluir o convidado.",
+      data?.message || error?.message || "Tente novamente."
+    );
+    return;
+  }
+
+  edicaoAtual = null;
+  await carregarDashboard();
+  renderAvisoAdmin("Convidado excluido.", "A lista foi atualizada.");
+}
+
+async function excluirPresente(id) {
+  if (!window.confirm("Excluir este presente? Convites que escolheram este item ficarao sem presente escolhido.")) return;
+
+  const client = await prepararSupabase();
+  if (!client) return;
+
+  const { data, error } = await client.rpc("admin_excluir_presente", {
+    p_presente_id: id,
+  });
+
+  if (error || !data?.success) {
+    renderAvisoAdmin(
+      "Nao foi possivel excluir o presente.",
+      data?.message || error?.message || "Tente novamente."
+    );
+    return;
+  }
+
+  edicaoAtual = null;
+  await carregarDashboard();
+  renderAvisoAdmin("Presente excluido.", "A lista foi atualizada.");
 }
 
 function csvCell(value) {
@@ -500,6 +767,8 @@ adminApp.addEventListener("submit", (event) => {
   if (form.dataset.adminForm === "login") entrarAdmin(form, botao);
   if (form.dataset.adminForm === "criar-convidado") cadastrarConvidado(form, botao);
   if (form.dataset.adminForm === "criar-presente") cadastrarPresente(form, botao);
+  if (form.dataset.adminForm === "editar-convidado") editarConvidado(form, botao);
+  if (form.dataset.adminForm === "editar-presente") editarPresente(form, botao);
 });
 
 adminApp.addEventListener("click", async (event) => {
@@ -508,6 +777,22 @@ adminApp.addEventListener("click", async (event) => {
 
   if (botao.dataset.adminAction === "exportar") exportarCsv();
   if (botao.dataset.adminAction === "atualizar") carregarDashboard();
+  if (botao.dataset.adminAction === "cancelar-edicao") {
+    edicaoAtual = null;
+    renderDashboard(dashboardAtual || {});
+  }
+  if (botao.dataset.adminAction === "editar-convidado") {
+    edicaoAtual = { tipo: "convidado", id: botao.dataset.id };
+    renderDashboard(dashboardAtual || {});
+    document.querySelector("[data-edit-panel]")?.scrollIntoView({ behavior: "smooth", block: "center" });
+  }
+  if (botao.dataset.adminAction === "editar-presente") {
+    edicaoAtual = { tipo: "presente", id: botao.dataset.id };
+    renderDashboard(dashboardAtual || {});
+    document.querySelector("[data-edit-panel]")?.scrollIntoView({ behavior: "smooth", block: "center" });
+  }
+  if (botao.dataset.adminAction === "excluir-convidado") excluirConvidado(botao.dataset.id);
+  if (botao.dataset.adminAction === "excluir-presente") excluirPresente(botao.dataset.id);
   if (botao.dataset.adminAction === "sair") {
     const client = await prepararSupabase();
     if (client) await client.auth.signOut();
@@ -515,6 +800,12 @@ adminApp.addEventListener("click", async (event) => {
     dashboardAtual = null;
     renderLogin();
   }
+});
+
+adminApp.addEventListener("change", (event) => {
+  if (event.target.name !== "tipo_presente") return;
+  const form = event.target.closest("form");
+  if (form) atualizarCamposTipoPresente(form);
 });
 
 carregarDashboard();
