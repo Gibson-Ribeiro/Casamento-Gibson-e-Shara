@@ -10,10 +10,13 @@ const EVENTO = {
   endereco: "Rua Ipê, 125, bairro Padre Martinho Stein, Timbó",
 };
 
+const MUSICA_CASAMENTO_SRC = "./assets/audio/musica-casamento.mp3";
+
 let codigoConvite = lerCodigoDaUrl();
 let conviteAtual = null;
 let acaoEmAndamento = false;
 let supabase = null;
+let audioCasamento = null;
 
 function lerCodigoDaUrl() {
   const params = new URLSearchParams(window.location.search);
@@ -39,6 +42,60 @@ function formatarMoeda(valor) {
     style: "currency",
     currency: "BRL",
   });
+}
+
+function obterAudioCasamento() {
+  if (!audioCasamento) {
+    audioCasamento = new Audio(MUSICA_CASAMENTO_SRC);
+    audioCasamento.loop = true;
+    audioCasamento.volume = 0.35;
+    audioCasamento.preload = "auto";
+  }
+
+  return audioCasamento;
+}
+
+function renderizarControleMusica() {
+  const audio = obterAudioCasamento();
+  let controle = document.querySelector("[data-music-control]");
+
+  if (!controle) {
+    controle = document.createElement("button");
+    controle.type = "button";
+    controle.className = "music-control";
+    controle.dataset.musicControl = "true";
+    controle.dataset.action = "alternar-musica";
+    document.body.appendChild(controle);
+  }
+
+  const tocando = !audio.paused;
+  controle.textContent = tocando ? "Pausar musica" : "Tocar musica";
+  controle.setAttribute("aria-label", tocando ? "Pausar musica do convite" : "Tocar musica do convite");
+}
+
+async function iniciarMusica() {
+  const audio = obterAudioCasamento();
+  renderizarControleMusica();
+
+  try {
+    await audio.play();
+  } catch (error) {
+    // O navegador pode bloquear se a acao nao veio diretamente de um toque.
+  }
+
+  renderizarControleMusica();
+}
+
+async function alternarMusica() {
+  const audio = obterAudioCasamento();
+
+  if (audio.paused) {
+    await iniciarMusica();
+    return;
+  }
+
+  audio.pause();
+  renderizarControleMusica();
 }
 
 function ehPix(presente) {
@@ -143,6 +200,26 @@ function mostrarMensagem({ titulo, texto, detalhe = "", acao = "" }) {
   `);
 }
 
+function renderizarEntradaConviteDireto() {
+  definirTela(`
+    <article class="paper-card paper-card--center fade-in">
+      <p class="eyebrow">Gibson & Shara</p>
+      <h1>Entrada do casamento</h1>
+      <p class="lead">
+        Toque para abrir seu convite personalizado.
+      </p>
+      <button
+        class="button button--primary"
+        type="button"
+        data-action="abrir-convite-direto"
+      >
+        Acessar convite
+      </button>
+      <p class="muted">Código ${escapeHtml(codigoConvite)}</p>
+    </article>
+  `);
+}
+
 function renderizarInicio({ aviso = "", detalhe = "" } = {}) {
   limparUrlInicial();
 
@@ -180,7 +257,7 @@ function renderizarInicio({ aviso = "", detalhe = "" } = {}) {
             />
           </label>
           <button class="button button--secondary" type="submit">
-            Abrir convite
+            Acessar convite
           </button>
         </form>
 
@@ -678,7 +755,11 @@ function abrirConvitePorCodigo(form) {
   const destino = new URL(window.location.href);
   destino.search = "";
   destino.searchParams.set("convite", codigo);
-  window.location.href = destino.toString();
+  window.history.pushState({}, "", destino.toString());
+  codigoConvite = codigo;
+  conviteAtual = null;
+  iniciarMusica();
+  buscarConvite();
 }
 
 async function entrarAdmin(form, botao) {
@@ -867,6 +948,11 @@ app.addEventListener("click", (event) => {
   if (action === "voltar-convite") renderizarConvite();
   if (action === "recarregar-presentes") renderizarPresentes();
   if (action === "enviar-link-senha") enviarLinkSenha(botao);
+  if (action === "abrir-convite-direto") {
+    iniciarMusica();
+    buscarConvite();
+  }
+  if (action === "alternar-musica") alternarMusica();
   if (action === "copiar-pix") copiarPix(botao);
   if (action === "escolher-presente") {
     escolherPresente(botao.dataset.presenteId, botao);
@@ -885,4 +971,8 @@ app.addEventListener("submit", (event) => {
   if (form.dataset.form === "recusa") enviarRecusa(form, botao);
 });
 
-buscarConvite();
+if (codigoConvite && !temRetornoAuthSupabase()) {
+  renderizarEntradaConviteDireto();
+} else {
+  buscarConvite();
+}
